@@ -1,0 +1,83 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redpanda-console-config
+  namespace: kafka
+data:
+  config.yaml: |
+    kafka:
+      brokers:
+        - kafka-cluster-kafka-bootstrap:9092
+    server:
+      listenPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redpanda-console
+  namespace: kafka
+  labels:
+    app: redpanda-console
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redpanda-console
+  template:
+    metadata:
+      labels:
+        app: redpanda-console
+    spec:
+      containers:
+        - name: redpanda-console
+          image: docker.redpanda.com/redpandadata/console:latest
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          env:
+            - name: CONFIG_FILEPATH
+              value: /etc/console/config.yaml
+          volumeMounts:
+            - name: config
+              mountPath: /etc/console
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+          livenessProbe:
+            httpGet:
+              path: /admin/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /admin/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: redpanda-console-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda-console
+  namespace: kafka
+  labels:
+    app: redpanda-console
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: redpanda-console
