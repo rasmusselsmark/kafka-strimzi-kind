@@ -120,6 +120,18 @@ print "⏳ Waiting for topic to be ready..."
 kubectl wait --for=condition=Ready kafkatopic test-topic -n "$KAFKA_NAMESPACE" --timeout=300s
 print_status "Test topic created"
 
+# Build and load demo producer image
+print
+print "🔨 Building demo producer Docker image..."
+cd demo-producer
+docker build -t kafka-demo-producer:latest . >/dev/null 2>&1
+cd ..
+print_status "Demo producer image built"
+
+print "📦 Loading image into Kind cluster..."
+kind load docker-image kafka-demo-producer:latest --name "$CLUSTER_NAME" >/dev/null 2>&1
+print_status "Image loaded into Kind cluster"
+
 # Deploy Redpanda Console
 print
 print "🖥️  Deploying Redpanda Console..."
@@ -131,24 +143,24 @@ print_status "Redpanda Console is ready"
 # Start demo data ingestion
 print
 print "📊 Starting demo data ingestion..."
-kubectl apply -f manifests/demo-producer.yaml -n "$KAFKA_NAMESPACE"
+kubectl apply -f manifests/demo-producer-unbalanced.yaml -n "$KAFKA_NAMESPACE"
 
 print
 echo -e "${GREEN}🎉 Setup complete!${NC}"
 print
 print "📋 Next steps:"
 echo "1. Access Redpanda Console UI:"
-echo "   kubectl port-forward service/redpanda-console 8080:8080 -n $KAFKA_NAMESPACE"
+echo "   kubectl -n $KAFKA_NAMESPACE port-forward service/redpanda-console 8080:8080"
 echo "   Then open http://localhost:8080 in your browser"
 echo ""
 echo "2. Port forward Kafka (for external clients):"
-echo "   kubectl port-forward service/kafka-cluster-kafka-bootstrap 9092:9092 -n $KAFKA_NAMESPACE"
+echo "   kubectl -n $KAFKA_NAMESPACE port-forward service/kafka-cluster-kafka-bootstrap 9092:9092"
 echo ""
 echo "3. Check demo producer logs:"
-echo "   kubectl logs -f deployment/demo-producer -n $KAFKA_NAMESPACE"
+echo "   kubectl -n $KAFKA_NAMESPACE logs -f deployment/demo-producer-unbalanced"
 echo ""
 echo "4. Consume messages via CLI:"
-echo "   kubectl run kafka-consumer --image=quay.io/strimzi/kafka:0.48.0-kafka-4.1.0 --rm -it --restart=Never -- bin/kafka-console-consumer.sh --bootstrap-server kafka-cluster-kafka-bootstrap:9092 --topic test-topic --from-beginning"
+echo "   kubectl -n $KAFKA_NAMESPACE run kafka-consumer --image=quay.io/strimzi/kafka:0.48.0-kafka-4.1.0 --rm -it --restart=Never -- bin/kafka-console-consumer.sh --bootstrap-server kafka-cluster-kafka-bootstrap:9092 --topic test-topic --from-beginning"
 echo ""
 print "🧹 To clean up:"
 echo "  ./cleanup.sh"

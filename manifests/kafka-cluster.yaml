@@ -86,3 +86,38 @@ spec:
     topicOperator: {}
     userOperator: {}
   kafkaExporter: {}
+  cruiseControl:
+    brokerCapacity:
+      inboundNetwork: 10000KB/s
+      outboundNetwork: 10000KB/s
+    # config:
+    #   # Cruise Control goals for rebalancing
+    #   default.goals: >
+    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.RackAwareGoal,
+    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.ReplicaCapacityGoal,
+    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.DiskCapacityGoal,
+    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.NetworkInboundCapacityGoal,
+    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.NetworkOutboundCapacityGoal,
+    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.CpuCapacityGoal,
+    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.ReplicaDistributionGoal,
+    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.PotentialNwOutGoal,
+    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.DiskUsageDistributionGoal,
+    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.NetworkInboundUsageDistributionGoal,
+    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.NetworkOutboundUsageDistributionGoal,
+    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.CpuUsageDistributionGoal,
+    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.TopicReplicaDistributionGoal,
+    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.LeaderReplicaDistributionGoal,
+    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.LeaderBytesInDistributionGoal
+    #   # Metrics collection interval (increased to avoid timeout issues)
+    #   metric.sampling.interval.ms: 120000
+    #   # Number of metric samples to keep
+    #   num.metric.windows: 5
+    #   # Metadata refresh timeout must be less than sampling interval
+    #   metadata.max.age.ms: 100000
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi

@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-producer-unbalanced
+  namespace: kafka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-producer-unbalanced
+  template:
+    metadata:
+      labels:
+        app: demo-producer-unbalanced
+    spec:
+      containers:
+      - name: demo-producer
+        image: kafka-demo-producer:latest
+        imagePullPolicy: Never
+        command:
+        - /bin/sh
+        - -c
+        - |
+          # first create 50K messages, so we have some data
+          /app/kafka-producer --messages 50000
+
+          # then just keep producing messages
+          /app/kafka-producer --messages 100000 --random-delay 2000
+        resources:
+          requests:
+            memory: 256Mi
+            cpu: 100m
+          limits:
+            memory: 512Mi
+            cpu: 200m
