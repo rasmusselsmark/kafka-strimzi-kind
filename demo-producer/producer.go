@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math"
 	"math/rand"
 	"strings"
 	"time"
@@ -82,8 +81,39 @@ func main() {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 
-		// Create a message
-		partition := int32(math.Mod(float64(i), 3) * 3)
+		// Create unbalanced partition distribution
+		// 60% of messages go to partitions 0, 3, 6, 9 (15% each)
+		// 40% of messages distributed across remaining 8 partitions (5% each)
+		var partition int32
+		randVal := rand.Intn(100)
+		
+		switch {
+		case randVal < 15: // 15% to partition 0
+			partition = 0
+		case randVal < 30: // 15% to partition 3
+			partition = 3
+		case randVal < 45: // 15% to partition 6
+			partition = 6
+		case randVal < 60: // 15% to partition 9
+			partition = 9
+		case randVal < 65: // 5% to partition 1
+			partition = 1
+		case randVal < 70: // 5% to partition 2
+			partition = 2
+		case randVal < 75: // 5% to partition 4
+			partition = 4
+		case randVal < 80: // 5% to partition 5
+			partition = 5
+		case randVal < 85: // 5% to partition 7
+			partition = 7
+		case randVal < 90: // 5% to partition 8
+			partition = 8
+		case randVal < 95: // 5% to partition 10
+			partition = 10
+		default: // 5% to partition 11
+			partition = 11
+		}
+
 		message := fmt.Sprintf("Hello, Kafka! Message %d", i+1)
 		record := &kgo.Record{
 			Topic:     *topic,

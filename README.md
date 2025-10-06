@@ -34,20 +34,22 @@ Then follow instructions on e.g. port-forward to access RedPanda UI.
    kubectl run kafka-consumer --image=quay.io/strimzi/kafka:0.48.0-kafka-4.1.0 --rm -it --restart=Never -- bin/kafka-console-consumer.sh --bootstrap-server kafka-cluster-kafka-bootstrap:9092 --topic test-topic --from-beginning
    ```
 
-## Sample Data
+## Rebalance cluster using Cruise Control
 
-The demo producer generates JSON messages like:
+Create rebalance plan:
+```
+kubectl apply -f manifests/kafka-rebalance.yaml
+```
+After a while, it should say:
+```
+$ kubectl -n kafka get KafkaRebalance
+NAME                CLUSTER         TEMPLATE   STATUS
+cluster-rebalance   kafka-cluster              ProposalReady
+```
 
-```json
-{
-  "id": 1,
-  "timestamp": "2024-01-15 10:30:45",
-  "message": "Hello from Kafka demo producer",
-  "data": {
-    "value": 42,
-    "category": "demo"
-  }
-}
+Then approve proposals:
+```
+kubectl -n kafka annotate KafkaRebalance/cluster-rebalance strimzi.io/rebalance=approve
 ```
 
 ## Useful Commands

@@ -24,8 +24,8 @@ spec:
           # first create 50K messages, so we have some data
           /app/kafka-producer --messages 50000
 
-          # then just keep producing messages
-          /app/kafka-producer --messages 100000 --random-delay 2000
+          # then just keep producing messages for a couple of hours
+          /app/kafka-producer --messages 100000 --random-delay 200
         resources:
           requests:
             memory: 256Mi
