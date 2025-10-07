@@ -25,14 +25,14 @@ Run
 Then follow instructions on e.g. port-forward to access RedPanda UI.
 
 1. **View demo messages**:
-   ```bash
-   kubectl -n kafka logs -f deployment/demo-producer
-   ```
+    ```bash
+    kubectl -n kafka logs -f deployment/demo-producer
+    ```
 
 1. **Consume messages**:
-   ```bash
-   kubectl -n kafka run kafka-consumer --image=quay.io/strimzi/kafka:0.48.0-kafka-4.1.0 --rm -it --restart=Never -- bin/kafka-console-consumer.sh --bootstrap-server kafka-cluster-kafka-bootstrap:9092 --topic test-topic --from-beginning
-   ```
+    ```bash
+    kubectl -n kafka run kafka-consumer --image=quay.io/strimzi/kafka:0.48.0-kafka-4.1.0 --rm -it --restart=Never -- bin/kafka-console-consumer.sh --bootstrap-server kafka-cluster-kafka-bootstrap:9092 --topic test-topic --from-beginning
+    ```
 
 ## Rebalance cluster using Cruise Control
 
