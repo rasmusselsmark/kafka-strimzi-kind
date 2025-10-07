@@ -1,10 +1,10 @@
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaRebalance
 metadata:
-  name: cluster-rebalance-add-broker
+  name: cluster-rebalance-add-brokers
   namespace: kafka
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
   mode: add-brokers
-  brokers: [3] 
+  brokers: [3, 4, 5]

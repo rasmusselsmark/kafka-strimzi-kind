@@ -143,7 +143,7 @@ print_status "Redpanda Console is ready"
 # Start demo data ingestion
 print
 print "📊 Starting demo data ingestion..."
-kubectl apply -f manifests/demo-producer-unbalanced.yaml -n "$KAFKA_NAMESPACE"
+kubectl apply -f manifests/demo-producer.yaml -n "$KAFKA_NAMESPACE"
 
 print
 echo -e "${GREEN}🎉 Setup complete!${NC}"
@@ -157,7 +157,7 @@ echo "2. Port forward Kafka (for external clients):"
 echo "   kubectl -n $KAFKA_NAMESPACE port-forward service/kafka-cluster-kafka-bootstrap 9092:9092"
 echo ""
 echo "3. Check demo producer logs:"
-echo "   kubectl -n $KAFKA_NAMESPACE logs -f deployment/demo-producer-unbalanced"
+echo "   kubectl -n $KAFKA_NAMESPACE logs -f deployment/demo-producer"
 echo ""
 echo "4. Consume messages via CLI:"
 echo "   kubectl -n $KAFKA_NAMESPACE run kafka-consumer --image=quay.io/strimzi/kafka:0.48.0-kafka-4.1.0 --rm -it --restart=Never -- bin/kafka-console-consumer.sh --bootstrap-server kafka-cluster-kafka-bootstrap:9092 --topic test-topic --from-beginning"
