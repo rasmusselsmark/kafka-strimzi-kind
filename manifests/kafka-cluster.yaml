@@ -6,7 +6,7 @@ metadata:
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
-  replicas: 3
+  replicas: 4
   roles:
     - broker
     - controller
@@ -90,6 +90,15 @@ spec:
     brokerCapacity:
       inboundNetwork: 10000KB/s
       outboundNetwork: 10000KB/s
+    autoRebalance:
+      # https://strimzi.io/blog/2024/11/25/autorebalancing-on-scaling/
+      # https://github.com/scholzj/demo-autoscaling-apache-kafka-with-strimzi
+      - mode: add-brokers
+        template:
+          name: cluster-auto-rebalancing-template
+      - mode: remove-brokers
+        template:
+          name: cluster-auto-rebalancing-template
     # config:
     #   # Cruise Control goals for rebalancing
     #   default.goals: >
@@ -121,3 +130,22 @@ spec:
       limits:
         cpu: 500m
         memory: 1Gi
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaRebalance
+metadata:
+  name: cluster-auto-rebalancing-template
+  annotations:
+    strimzi.io/rebalance-template: "true" # specifies that this KafkaRebalance is a rebalance configuration template
+spec:
+  # NOTE: mode and brokers fields, if set, will be just ignored because they are
+  #       automatically set on the corresponding KafkaRebalance by the operator
+  goals:
+    - CpuCapacityGoal
+    - NetworkInboundCapacityGoal
+    - DiskCapacityGoal
+    - RackAwareGoal
+    - MinTopicLeadersPerBrokerGoal
+    - NetworkOutboundCapacityGoal
+    - ReplicaCapacityGoal
+  skipHardGoalCheck: true

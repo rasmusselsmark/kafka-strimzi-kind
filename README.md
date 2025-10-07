@@ -52,6 +52,24 @@ Then approve proposals:
 kubectl -n kafka annotate KafkaRebalance/cluster-rebalance strimzi.io/rebalance=approve
 ```
 
+## Scale cluster
+
+Modify number of replicas, then
+```
+$ kubectl -n kafka apply -f manifests/kafka-cluster.yaml
+kafkanodepool.kafka.strimzi.io/broker configured
+kafka.kafka.strimzi.io/kafka-cluster unchanged
+kafkarebalance.kafka.strimzi.io/cluster-auto-rebalancing-template unchanged
+
+$ kubectl -n kafka get kafkarebalance -w
+NAME                                         CLUSTER         TEMPLATE   STATUS
+cluster-auto-rebalancing-template                            true
+kafka-cluster-auto-rebalancing-add-brokers   kafka-cluster              PendingProposal
+kafka-cluster-auto-rebalancing-add-brokers   kafka-cluster              ProposalReady
+kafka-cluster-auto-rebalancing-add-brokers   kafka-cluster              Rebalancing
+kafka-cluster-auto-rebalancing-add-brokers   kafka-cluster              Ready
+```
+
 ## Useful Commands
 
 ### Check cluster status

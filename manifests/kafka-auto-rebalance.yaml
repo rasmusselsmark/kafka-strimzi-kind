@@ -1,0 +1,11 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaRebalance
+metadata:
+  name: cluster-auto-rebalance
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: kafka-cluster
+  annotations:
+    strimzi.io/rebalance-auto-approval: "true"
+spec:
+  mode: full
