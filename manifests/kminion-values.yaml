@@ -1,0 +1,68 @@
+kminion:
+  # See reference config: https://github.com/redpanda-data/kminion/blob/master/docs/reference-config.yaml
+  config:
+    kafka:
+      brokers: [ "kafka-cluster-kafka-bootstrap:9092" ]
+      clientId: "kminion"
+
+    minion:
+      consumerGroups:
+        # Enabled specifies whether consumer groups shall be scraped and exported or not.
+        enabled: false
+      logDirs:
+        # Enabled specifies whether log dirs shall be scraped and exported or not. This should be disabled for clusters prior
+        # to version 1.0.0 as describing log dirs was not supported back then.
+        enabled: false
+
+      endToEnd:
+        enabled: true
+        probeInterval: 800ms # how often to send end-to-end test messages
+        topicManagement:
+          # You can disable topic management, without disabling the testing feature.
+          # Only makes sense if you have multiple kminion instances, and for some reason only want one of them to create/configure the topic.
+          # It is strongly recommended to leave this enabled.
+          enabled: true
+
+          # Name of the topic kminion uses to send its test messages
+          # You do *not* need to change this if you are running multiple kminion instances on the same cluster.
+          # Different instances are perfectly fine with sharing the same topic!
+          name: kminion-end-to-end
+
+          # How often kminion checks its topic to validate configuration, partition count, and partition assignments
+          reconciliationInterval: 10m
+
+          # Useful for monitoring the performance of acks (if >1 this is best combined with 'producer.requiredAcks' set to 'all')
+          replicationFactor: 1
+
+          # Rarely makes sense to change this, but maybe if you want some sort of cheap load test?
+          partitionsPerBroker: 1
+
+        producer:
+          # This defines the maximum time to wait for an ack response after producing a message,
+          # and the upper bound for histogram buckets in "produce_latency_seconds"
+          ackSla: 5s
+          # Can be to "all" (default) so kafka only reports an end-to-end test message as acknowledged if
+          # the message was written to all in-sync replicas of the partition.
+          # Or can be set to "leader" to only require to have written the message to its log.
+          requiredAcks: all
+
+        consumer:
+          # Prefix kminion uses when creating its consumer groups. Current kminion instance id will be appended automatically
+          groupIdPrefix: kminion-end-to-end
+
+          # Whether KMinion should try to delete empty consumer groups with the same prefix. This can be used if you want
+          # KMinion to cleanup it's old consumer groups. It should only be used if you use a unique prefix for KMinion.
+          deleteStaleConsumerGroups: false
+
+          # Defines the time limit beyond which a message is considered "lost" (failed the roundtrip),
+          # also used as the upper bound for histogram buckets in "roundtrip_latency"
+          roundtripSla: 20s
+
+          # Maximum time an offset commit is allowed to take before considering it failed,
+          # also used as the upper bound for histogram buckets in "commit_latency_seconds"
+          commitSla: 10s
+
+tests:
+  enabled: true
+
+configAutoReload: false

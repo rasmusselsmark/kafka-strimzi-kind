@@ -63,6 +63,14 @@ if ! command_exists docker; then
 fi
 print_status "Docker is available"
 
+if ! command_exists helm; then
+    print_error "Helm is not installed. Please install Helm first:"
+    echo "  brew install helm"
+    echo "  or visit: https://helm.sh/docs/intro/install/"
+    exit 1
+fi
+print_status "Helm is installed"
+
 # Check if cluster exists, reuse if present, else create
 if kind get clusters | grep -q "$CLUSTER_NAME"; then
     print "Existing Kind cluster '$CLUSTER_NAME' found, reusing it."
@@ -145,6 +153,25 @@ print
 print "📊 Starting demo data ingestion..."
 kubectl apply -f manifests/demo-producer.yaml -n "$KAFKA_NAMESPACE"
 
+# Install KMinion for monitoring
+print
+print "📊 Installing KMinion for Kafka monitoring..."
+# Add Redpanda Helm repository
+helm repo add redpanda https://charts.redpanda.com/ >/dev/null 2>&1
+helm repo update >/dev/null 2>&1
+print_status "Redpanda Helm repository added"
+
+# Install KMinion with custom values
+helm upgrade --install kminion redpanda/kminion \
+  --namespace "$KAFKA_NAMESPACE" \
+  --values manifests/kminion-values.yaml \
+  --wait \
+  --timeout=300s >/dev/null 2>&1
+
+print "⏳ Waiting for KMinion to be ready..."
+kubectl wait --for=condition=Available deployment/kminion -n "$KAFKA_NAMESPACE" --timeout=300s
+print_status "KMinion is ready"
+
 print
 echo -e "${GREEN}🎉 Setup complete!${NC}"
 print
@@ -153,13 +180,20 @@ echo "1. Access Redpanda Console UI:"
 echo "   kubectl -n $KAFKA_NAMESPACE port-forward service/redpanda-console 8080:8080"
 echo "   Then open http://localhost:8080 in your browser"
 echo ""
-echo "2. Port forward Kafka (for external clients):"
+echo "2. Access KMinion metrics:"
+echo "   kubectl -n $KAFKA_NAMESPACE port-forward service/kminion 8081:8080"
+echo "   Then open http://localhost:8081/metrics in your browser"
+echo ""
+echo "3. Port forward Kafka (for external clients):"
 echo "   kubectl -n $KAFKA_NAMESPACE port-forward service/kafka-cluster-kafka-bootstrap 9092:9092"
 echo ""
-echo "3. Check demo producer logs:"
+echo "4. Check demo producer logs:"
 echo "   kubectl -n $KAFKA_NAMESPACE logs -f deployment/demo-producer"
 echo ""
-echo "4. Consume messages via CLI:"
+echo "5. Check KMinion logs:"
+echo "   kubectl -n $KAFKA_NAMESPACE logs -f deployment/kminion"
+echo ""
+echo "6. Consume messages via CLI:"
 echo "   kubectl -n $KAFKA_NAMESPACE run kafka-consumer --image=quay.io/strimzi/kafka:0.48.0-kafka-4.1.0 --rm -it --restart=Never -- bin/kafka-console-consumer.sh --bootstrap-server kafka-cluster-kafka-bootstrap:9092 --topic test-topic --from-beginning"
 echo ""
 print "🧹 To clean up:"
