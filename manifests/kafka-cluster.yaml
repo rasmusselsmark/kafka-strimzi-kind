@@ -6,7 +6,7 @@ metadata:
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
-  replicas: 3
+  replicas: 6
   roles:
     - broker
     - controller
@@ -99,30 +99,42 @@ spec:
       - mode: remove-brokers
         template:
           name: cluster-auto-rebalancing-template
-    # config:
-    #   # Cruise Control goals for rebalancing
-    #   default.goals: >
-    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.RackAwareGoal,
-    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.ReplicaCapacityGoal,
-    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.DiskCapacityGoal,
-    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.NetworkInboundCapacityGoal,
-    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.NetworkOutboundCapacityGoal,
-    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.CpuCapacityGoal,
-    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.ReplicaDistributionGoal,
-    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.PotentialNwOutGoal,
-    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.DiskUsageDistributionGoal,
-    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.NetworkInboundUsageDistributionGoal,
-    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.NetworkOutboundUsageDistributionGoal,
-    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.CpuUsageDistributionGoal,
-    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.TopicReplicaDistributionGoal,
-    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.LeaderReplicaDistributionGoal,
-    #     com.linkedin.kafka.cruisecontrol.analyzer.goals.LeaderBytesInDistributionGoal
-    #   # Metrics collection interval (increased to avoid timeout issues)
-    #   metric.sampling.interval.ms: 120000
-    #   # Number of metric samples to keep
-    #   num.metric.windows: 5
-    #   # Metadata refresh timeout must be less than sampling interval
-    #   metadata.max.age.ms: 100000
+    config:
+      default.replication.throttle: "134217728"
+      hard.goals: >
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.RackAwareGoal,
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.PotentialNwOutGoal,
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.DiskCapacityGoal,
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.NetworkInboundCapacityGoal,
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.NetworkOutboundCapacityGoal,
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.CpuCapacityGoal,
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.ReplicaCapacityGoal
+
+      # https://strimzi.io/docs/operators/latest/configuring.html#type-CruiseControlSpec-reference
+      # `default.goals` (superset) must also include all `hard.goals` (subset)
+      default.goals: >
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.RackAwareGoal,
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.PotentialNwOutGoal,
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.DiskCapacityGoal,
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.NetworkInboundCapacityGoal,
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.NetworkOutboundCapacityGoal,
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.CpuCapacityGoal,
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.ReplicaCapacityGoal,
+
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.DiskUsageDistributionGoal,
+
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.TopicReplicaDistributionGoal,
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.LeaderReplicaDistributionGoal,
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.LeaderBytesInDistributionGoal,
+
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.NetworkInboundUsageDistributionGoal,
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.NetworkOutboundUsageDistributionGoal,
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.CpuUsageDistributionGoal,
+
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.ReplicaDistributionGoal,
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.MinTopicLeadersPerBrokerGoal,
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.PreferredLeaderElectionGoal
+
     resources:
       requests:
         cpu: 200m
@@ -137,15 +149,4 @@ metadata:
   name: cluster-auto-rebalancing-template
   annotations:
     strimzi.io/rebalance-template: "true" # specifies that this KafkaRebalance is a rebalance configuration template
-spec:
-  # NOTE: mode and brokers fields, if set, will be just ignored because they are
-  #       automatically set on the corresponding KafkaRebalance by the operator
-  goals:
-    - CpuCapacityGoal
-    - NetworkInboundCapacityGoal
-    - DiskCapacityGoal
-    - RackAwareGoal
-    - MinTopicLeadersPerBrokerGoal
-    - NetworkOutboundCapacityGoal
-    - ReplicaCapacityGoal
-  skipHardGoalCheck: true
+spec: {}

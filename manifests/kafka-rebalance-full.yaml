@@ -1,7 +1,7 @@
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaRebalance
 metadata:
-  name: cluster-rebalance
+  name: cluster-rebalance-full
   namespace: kafka
   labels:
     strimzi.io/cluster: kafka-cluster
