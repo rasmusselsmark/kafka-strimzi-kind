@@ -6,7 +6,7 @@ metadata:
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
-  replicas: 6
+  replicas: 3
   roles:
     - broker
     - controller

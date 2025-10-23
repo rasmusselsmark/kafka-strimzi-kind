@@ -1,0 +1,27 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kminion-servicemonitor
+  namespace: kafka
+  labels:
+    app: kminion
+    release: prometheus-operator
+spec:
+  # Selector to match the KMinion service
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kminion
+      app.kubernetes.io/instance: kminion
+
+  # Endpoints configuration
+  endpoints:
+  - port: metrics
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
+    scheme: http
+
+  # Namespace selector (optional - will scrape services in the same namespace by default)
+  namespaceSelector:
+    matchNames:
+    - kafka

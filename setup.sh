@@ -75,7 +75,7 @@ print_status "Helm is installed"
 if kind get clusters | grep -q "$CLUSTER_NAME"; then
     print "Existing Kind cluster '$CLUSTER_NAME' found, reusing it."
     # Ensure kubectl context is set to the kind cluster
-    kubectl cluster-info --context "kind-$CLUSTER_NAME" >/dev/null 2>&1 || kubectl config use-context "kind-$CLUSTER_NAME"
+    kubectl config use-context "kind-$CLUSTER_NAME"
     print_status "Switched kubectl context to 'kind-$CLUSTER_NAME'"
 else
     print "🏗️ Creating Kind cluster with 3 nodes..."
@@ -172,6 +172,38 @@ print "⏳ Waiting for KMinion to be ready..."
 kubectl wait --for=condition=Available deployment/kminion -n "$KAFKA_NAMESPACE" --timeout=300s
 print_status "KMinion is ready"
 
+# Install Prometheus Operator for monitoring
+print
+print "📊 Installing Prometheus Operator for metrics collection..."
+# Add Prometheus Community Helm repository
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1
+helm repo update >/dev/null 2>&1
+print_status "Prometheus Community Helm repository added"
+
+# Install Prometheus Operator
+# The `prometheus.prometheusSpec` values are required for discovering KMinion metrics using custom ServiceMonitor.
+helm upgrade --install prometheus-operator prometheus-community/kube-prometheus-stack \
+  --namespace "$KAFKA_NAMESPACE" \
+  --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
+  --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
+  --set prometheus.prometheusSpec.ruleSelectorNilUsesHelmValues=false \
+  --set grafana.enabled=false \
+  --wait \
+  --timeout=300s >/dev/null 2>&1
+
+print "⏳ Waiting for Prometheus Operator to be ready..."
+kubectl wait --for=condition=Available deployment/prometheus-operator-kube-p-operator -n "$KAFKA_NAMESPACE" --timeout=300s
+print_status "Prometheus Operator is ready"
+
+# Deploy ServiceMonitor for KMinion
+print
+print "📊 Deploying ServiceMonitor for KMinion..."
+kubectl apply -f manifests/kminion-servicemonitor.yaml -n "$KAFKA_NAMESPACE"
+
+print "⏳ Waiting for Prometheus to be ready..."
+kubectl wait --for=condition=Available prometheus/prometheus-operator-kube-p-prometheus -n "$KAFKA_NAMESPACE" --timeout=300s
+print_status "Prometheus is ready"
+
 print
 echo -e "${GREEN}🎉 Setup complete!${NC}"
 print
@@ -180,20 +212,27 @@ echo "1. Access Redpanda Console UI:"
 echo "   kubectl -n $KAFKA_NAMESPACE port-forward service/redpanda-console 8080:8080"
 echo "   Then open http://localhost:8080 in your browser"
 echo ""
-echo "2. Access KMinion metrics:"
+echo "2. Access Prometheus UI:"
+echo "   kubectl -n $KAFKA_NAMESPACE port-forward service/prometheus-operator-kube-p-prometheus 9090:9090"
+echo "   Then open http://localhost:9090 in your browser"
+echo ""
+echo "3. Access KMinion metrics directly:"
 echo "   kubectl -n $KAFKA_NAMESPACE port-forward service/kminion 8081:8080"
 echo "   Then open http://localhost:8081/metrics in your browser"
 echo ""
-echo "3. Port forward Kafka (for external clients):"
+echo "4. Port forward Kafka (for external clients):"
 echo "   kubectl -n $KAFKA_NAMESPACE port-forward service/kafka-cluster-kafka-bootstrap 9092:9092"
 echo ""
-echo "4. Check demo producer logs:"
+echo "5. Check demo producer logs:"
 echo "   kubectl -n $KAFKA_NAMESPACE logs -f deployment/demo-producer"
 echo ""
-echo "5. Check KMinion logs:"
+echo "6. Check KMinion logs:"
 echo "   kubectl -n $KAFKA_NAMESPACE logs -f deployment/kminion"
 echo ""
-echo "6. Consume messages via CLI:"
+echo "7. Check Prometheus logs:"
+echo "   kubectl -n $KAFKA_NAMESPACE logs -f deployment/prometheus-operator-kube-p-prometheus"
+echo ""
+echo "8. Consume messages via CLI:"
 echo "   kubectl -n $KAFKA_NAMESPACE run kafka-consumer --image=quay.io/strimzi/kafka:0.48.0-kafka-4.1.0 --rm -it --restart=Never -- bin/kafka-console-consumer.sh --bootstrap-server kafka-cluster-kafka-bootstrap:9092 --topic test-topic --from-beginning"
 echo ""
 print "🧹 To clean up:"
