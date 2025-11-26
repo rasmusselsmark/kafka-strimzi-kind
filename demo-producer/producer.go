@@ -20,6 +20,7 @@ func main() {
 	messages := flag.Int("messages", 1000, "Number of messages to produce")
 	delay := flag.Int("delay", 0, "Delay in milliseconds between each message")
 	randomDelay := flag.Int("random-delay", 0, "Use random delay between 0 and specified delay (milliseconds)")
+	startFrom := flag.Int("start-from", 0, "First message number to start from")
 
 	// Parse command-line flags
 	flag.Parse()
@@ -80,7 +81,7 @@ func main() {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 
-		message := fmt.Sprintf("Hello, Kafka! Message %d", i+1)
+		message := fmt.Sprintf("Hello, Kafka! Message %d", *startFrom+i)
 		record := &kgo.Record{
 			Topic:     *topic,
 			Value:     []byte(message),

@@ -25,7 +25,7 @@ spec:
           /app/kafka-producer --messages 50000
 
           # then just keep producing messages for a couple of hours
-          /app/kafka-producer --messages 100000 --random-delay 200
+          /app/kafka-producer --messages 100000 --start-from 50000 --random-delay 200
         resources:
           requests:
             memory: 256Mi

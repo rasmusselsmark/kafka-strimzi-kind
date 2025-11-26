@@ -4,7 +4,7 @@ A complete setup for running Apache Kafka locally using Kubernetes-in-Docker (Ki
 
 * 3 Kafka brokers
 * 1 topic with 12 partitions
-* Producer that writes ~5 messages per second
+* Producer that first writes 50K messages, then ~10 messages per second
 * [Redpanda Console](https://github.com/redpanda-data/console)
 * [Cruise Control](https://github.com/linkedin/cruise-control)
 * [Prometheus](https://prometheus.io)
