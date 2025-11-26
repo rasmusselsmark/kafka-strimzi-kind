@@ -16,7 +16,7 @@ spec:
       containers:
       - name: demo-producer
         image: kafka-demo-producer:latest
-        imagePullPolicy: Never
+        imagePullPolicy: Never # force use of local image
         command:
         - /bin/sh
         - -c

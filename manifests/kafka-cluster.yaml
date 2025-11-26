@@ -1,4 +1,4 @@
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaNodePool
 metadata:
   name: broker
@@ -41,7 +41,7 @@ spec:
                       - kafka-cluster-broker
               topologyKey: kubernetes.io/hostname
 ---
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: Kafka
 metadata:
   name: kafka-cluster
@@ -100,6 +100,8 @@ spec:
         template:
           name: cluster-auto-rebalancing-template
     config:
+      # Disable HTTP basic authentication for Cruise Control UI
+      webserver.security.enable: false
       default.replication.throttle: "134217728"
       hard.goals: >
         com.linkedin.kafka.cruisecontrol.analyzer.goals.RackAwareGoal,
@@ -143,7 +145,7 @@ spec:
         cpu: 500m
         memory: 1Gi
 ---
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaRebalance
 metadata:
   name: cluster-auto-rebalancing-template

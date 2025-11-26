@@ -1,13 +1,25 @@
 # Kafka with Strimzi on Kind
 
-A complete setup for running Apache Kafka locally using Kubernetes-in-Docker (Kind) with the [Strimzi operator](https://strimzi.io/) in KRaft mode.
+A complete setup for running Apache Kafka locally using Kubernetes-in-Docker (Kind) with the [Strimzi operator](https://strimzi.io) in KRaft mode, with:
+
+* 3 Kafka brokers
+* 1 topic with 12 partitions
+* Producer that writes ~5 messages per second
+* [Redpanda Console](https://github.com/redpanda-data/console)
+* [Cruise Control](https://github.com/linkedin/cruise-control)
+* [Prometheus](https://prometheus.io)
+* [Redpanda KMinion](https://github.com/redpanda-data/kminion)
+
+![](./docs/images/console.png)
+
+Manifests for each of the included services can be found in the [manifests folder](./manifests).
+
+## Prerequisites
 
 If running using Colima (Docker Desktop alternative), make sure you have enough resource, e.g.
 ```
-colima start --memory 12 --cpu 6 --disk 100
+colima start --memory 16 --cpu 6 --disk 200
 ```
-
-## Prerequisites
 
 Before running the setup, ensure you have the following installed:
 
@@ -68,4 +80,11 @@ kafka-cluster-auto-rebalancing-add-brokers   kafka-cluster              PendingP
 kafka-cluster-auto-rebalancing-add-brokers   kafka-cluster              ProposalReady
 kafka-cluster-auto-rebalancing-add-brokers   kafka-cluster              Rebalancing
 kafka-cluster-auto-rebalancing-add-brokers   kafka-cluster              Ready
+```
+
+## Cleanup
+
+Run
+```
+./cleanup.sh
 ```
