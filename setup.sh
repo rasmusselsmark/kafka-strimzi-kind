@@ -2,6 +2,10 @@
 
 set -e
 
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091
+source "$ROOT/scripts/set-versions.sh"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -11,7 +15,6 @@ NC='\033[0m' # No Color
 # Configuration
 CLUSTER_NAME="kafka-cluster"
 KAFKA_NAMESPACE="kafka"
-STRIMZI_VERSION="latest"
 
 # Function to check if command exists
 command_exists() {
@@ -69,6 +72,12 @@ check_prerequisites() {
         exit 1
     fi
     print_status "Helm is installed"
+
+    if ! command_exists curl; then
+        print_error "curl is not installed. It is required when STRIMZI_VERSION is not 'latest'."
+        exit 1
+    fi
+    print_status "curl is installed"
 }
 
 # Setup Kind cluster
@@ -109,7 +118,10 @@ install_strimzi_operator() {
     if ! kubectl get deployment strimzi-cluster-operator -n "$KAFKA_NAMESPACE" >/dev/null 2>&1; then
         print
         print "🔧 Installing Strimzi operator..."
-        kubectl create -f "https://strimzi.io/install/${STRIMZI_VERSION}?namespace=${KAFKA_NAMESPACE}" -n "$KAFKA_NAMESPACE"
+
+        # we download the operator bundle from GitHub releases, since we use a pinned version
+        strimzi_bundle="https://github.com/strimzi/strimzi-kafka-operator/releases/download/${STRIMZI_VERSION}/strimzi-cluster-operator-${STRIMZI_VERSION}.yaml"
+        curl -fsSL "$strimzi_bundle" | sed "s#myproject#${KAFKA_NAMESPACE}#g" | kubectl create -f - -n "$KAFKA_NAMESPACE"
 
         # Wait for Strimzi operator to be ready
         print "⏳ Waiting for Strimzi operator to be ready..."
@@ -122,7 +134,8 @@ install_strimzi_operator() {
 deploy_kafka_cluster() {
     print
     print "🚀 Deploying Kafka cluster..."
-    kubectl apply -f manifests/kafka-cluster.yaml -n "$KAFKA_NAMESPACE"
+    sed "s/__KAFKA_VERSION__/${KAFKA_VERSION}/g" "$ROOT/manifests/kafka-cluster.yaml" |
+        kubectl apply -f - -n "$KAFKA_NAMESPACE"
 
     # Wait for Kafka cluster to be ready
     print "⏳ Waiting for Kafka cluster to be ready..."
@@ -259,7 +272,7 @@ print_completion_message() {
     echo "   kubectl -n $KAFKA_NAMESPACE logs -f deployment/prometheus-operator-kube-p-prometheus"
     echo ""
     echo "8. Consume messages via CLI:"
-    echo "   kubectl -n $KAFKA_NAMESPACE run kafka-consumer --image=quay.io/strimzi/kafka:0.48.0-kafka-4.1.0 --rm -it --restart=Never -- bin/kafka-console-consumer.sh --bootstrap-server kafka-cluster-kafka-bootstrap:9092 --topic test-topic --from-beginning"
+    echo "   kubectl -n $KAFKA_NAMESPACE run kafka-consumer --image=quay.io/strimzi/kafka:${STRIMZI_VERSION}-kafka-${KAFKA_VERSION} --rm -it --restart=Never -- bin/kafka-console-consumer.sh --bootstrap-server kafka-cluster-kafka-bootstrap:9092 --topic test-topic --from-beginning"
     echo ""
     print "🧹 To clean up:"
     echo "  ./cleanup.sh"

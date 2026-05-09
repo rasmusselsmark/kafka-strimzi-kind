@@ -1,6 +1,6 @@
 # Kafka with Strimzi on Kind
 
-A complete setup for running Apache Kafka locally using Kubernetes-in-Docker (Kind) with the [Strimzi operator](https://strimzi.io) in KRaft mode, with:
+A complete setup for running Apache Kafka locally in Kubernetes-in-Docker (Kind) using the [Strimzi operator](https://strimzi.io) in KRaft mode, with:
 
 * 3 Kafka brokers
 * 1 topic with 12 partitions
@@ -41,9 +41,9 @@ Then follow instructions on e.g. port-forward to access RedPanda UI.
     kubectl -n kafka logs -f deployment/demo-producer
     ```
 
-1. **Consume messages**:
+1. **Consume messages** (from repo root, after `source ./scripts/set-versions.sh`):
     ```bash
-    kubectl -n kafka run kafka-consumer --image=quay.io/strimzi/kafka:0.48.0-kafka-4.1.0 --rm -it --restart=Never -- bin/kafka-console-consumer.sh --bootstrap-server kafka-cluster-kafka-bootstrap:9092 --topic test-topic --from-beginning
+    kubectl -n kafka run kafka-consumer --image=quay.io/strimzi/kafka:${STRIMZI_VERSION}-kafka-${KAFKA_VERSION} --rm -it --restart=Never -- bin/kafka-console-consumer.sh --bootstrap-server kafka-cluster-kafka-bootstrap:9092 --topic test-topic --from-beginning
     ```
 
 ## Rebalance cluster using Cruise Control
@@ -66,9 +66,11 @@ kubectl -n kafka annotate KafkaRebalance/cluster-rebalance-full strimzi.io/rebal
 
 ## Scale cluster
 
-Modify number of replicas, then
+Modify number of replicas in [`manifests/kafka-cluster.yaml`](./manifests/kafka-cluster.yaml), then apply with the same substitution [`setup.sh`](./setup.sh) uses (from repo root):
+
 ```
-$ kubectl -n kafka apply -f manifests/kafka-cluster.yaml
+$ source ./scripts/set-versions.sh
+$ sed "s/__KAFKA_VERSION__/${KAFKA_VERSION}/g" manifests/kafka-cluster.yaml | kubectl apply -f - -n kafka
 kafkanodepool.kafka.strimzi.io/broker configured
 kafka.kafka.strimzi.io/kafka-cluster unchanged
 kafkarebalance.kafka.strimzi.io/cluster-auto-rebalancing-template unchanged

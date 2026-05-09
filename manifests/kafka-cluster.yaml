@@ -50,8 +50,8 @@ metadata:
     strimzi.io/node-pools: enabled
 spec:
   kafka:
-    version: 4.1.0
-    metadataVersion: 4.1-IV0
+    # Set in scripts/set-versions.sh; setup.sh substitutes __KAFKA_VERSION__ on apply.
+    version: __KAFKA_VERSION__
     listeners:
       - name: plain
         port: 9092
@@ -113,7 +113,7 @@ spec:
         com.linkedin.kafka.cruisecontrol.analyzer.goals.ReplicaCapacityGoal
 
       # https://strimzi.io/docs/operators/latest/configuring.html#type-CruiseControlSpec-reference
-      # `default.goals` (superset) must also include all `hard.goals` (subset)
+      # `default.goals` (superset) must also include all `hard.goals` (subset).
       default.goals: >
         com.linkedin.kafka.cruisecontrol.analyzer.goals.RackAwareGoal,
         com.linkedin.kafka.cruisecontrol.analyzer.goals.PotentialNwOutGoal,
@@ -134,8 +134,7 @@ spec:
         com.linkedin.kafka.cruisecontrol.analyzer.goals.CpuUsageDistributionGoal,
 
         com.linkedin.kafka.cruisecontrol.analyzer.goals.ReplicaDistributionGoal,
-        com.linkedin.kafka.cruisecontrol.analyzer.goals.MinTopicLeadersPerBrokerGoal,
-        com.linkedin.kafka.cruisecontrol.analyzer.goals.PreferredLeaderElectionGoal
+        com.linkedin.kafka.cruisecontrol.analyzer.goals.MinTopicLeadersPerBrokerGoal
 
     resources:
       requests:
