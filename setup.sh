@@ -241,38 +241,47 @@ deploy_servicemonitor() {
     print_status "Prometheus is ready"
 }
 
+# Install NGINX Ingress Controller and apply ingress rules
+setup_ingress() {
+    print
+    print "🔧 Installing NGINX Ingress Controller for KIND..."
+
+    # Install NGINX Ingress Controller (KIND-specific manifest)
+    kubectl apply -f https://kind.sigs.k8s.io/examples/ingress/deploy-ingress-nginx.yaml
+
+    print "⏳ Waiting for Ingress Controller to be ready..."
+    kubectl wait --namespace ingress-nginx \
+      --for=condition=ready pod \
+      --selector=app.kubernetes.io/component=controller \
+      --timeout=120s
+    print_status "NGINX Ingress Controller is ready"
+
+    # Apply the ingress rules
+    print "📝 Applying Ingress rules..."
+    kubectl apply -f "$ROOT/manifests/ingress.yaml"
+    print_status "Ingress rules applied"
+}
+
 # Print completion message
 print_completion_message() {
     print
     echo -e "${GREEN}🎉 Setup complete!${NC}"
     print
-    print "📋 Next steps:"
-    echo "1. Access Redpanda Console UI:"
-    echo "   kubectl -n $KAFKA_NAMESPACE port-forward service/redpanda-console 8080:8080"
-    echo "   Then open http://localhost:8080 in your browser"
+    print "📋 Access services (uses nip.io DNS):"
     echo ""
-    echo "2. Access Prometheus UI:"
-    echo "   kubectl -n $KAFKA_NAMESPACE port-forward service/prometheus-operator-kube-p-prometheus 9090:9090"
-    echo "   Then open http://localhost:9090 in your browser"
+    echo "  📊 Redpanda Console:  http://console.127.0.0.1.nip.io"
+    echo "  📈 Prometheus:        http://prometheus.127.0.0.1.nip.io"
     echo ""
-    echo "3. Access KMinion metrics directly:"
-    echo "   kubectl -n $KAFKA_NAMESPACE port-forward service/kminion 8081:8080"
-    echo "   Then open http://localhost:8081/metrics in your browser"
+    print "📋 Kafka access:"
+    echo "  Port forward for external clients:"
+    echo "    kubectl -n $KAFKA_NAMESPACE port-forward service/kafka-cluster-kafka-bootstrap 9092:9092"
     echo ""
-    echo "4. Port forward Kafka (for external clients):"
-    echo "   kubectl -n $KAFKA_NAMESPACE port-forward service/kafka-cluster-kafka-bootstrap 9092:9092"
+    echo "  Consume messages via CLI:"
+    echo "    kubectl -n $KAFKA_NAMESPACE run kafka-consumer --image=quay.io/strimzi/kafka:${STRIMZI_VERSION}-kafka-${KAFKA_VERSION} --rm -it --restart=Never -- bin/kafka-console-consumer.sh --bootstrap-server kafka-cluster-kafka-bootstrap:9092 --topic test-topic --from-beginning"
     echo ""
-    echo "5. Check demo producer logs:"
-    echo "   kubectl -n $KAFKA_NAMESPACE logs -f deployment/demo-producer"
-    echo ""
-    echo "6. Check KMinion logs:"
-    echo "   kubectl -n $KAFKA_NAMESPACE logs -f deployment/kminion"
-    echo ""
-    echo "7. Check Prometheus logs:"
-    echo "   kubectl -n $KAFKA_NAMESPACE logs -f deployment/prometheus-operator-kube-p-prometheus"
-    echo ""
-    echo "8. Consume messages via CLI:"
-    echo "   kubectl -n $KAFKA_NAMESPACE run kafka-consumer --image=quay.io/strimzi/kafka:${STRIMZI_VERSION}-kafka-${KAFKA_VERSION} --rm -it --restart=Never -- bin/kafka-console-consumer.sh --bootstrap-server kafka-cluster-kafka-bootstrap:9092 --topic test-topic --from-beginning"
+    print "📋 Logs:"
+    echo "  kubectl -n $KAFKA_NAMESPACE logs -f deployment/demo-producer"
+    echo "  kubectl -n $KAFKA_NAMESPACE logs -f deployment/kminion"
     echo ""
     print "🧹 To clean up:"
     echo "  ./cleanup.sh"
@@ -293,6 +302,7 @@ main() {
     install_kminion
     install_prometheus_operator
     deploy_servicemonitor
+    setup_ingress
     start_demo_data_ingestion
     print_completion_message
 }
