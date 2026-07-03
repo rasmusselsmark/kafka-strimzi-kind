@@ -61,6 +61,29 @@ spec:
         port: 9093
         type: internal
         tls: true
+      # External access for host clients (no port-forward needed).
+      # Plaintext nodeport routed by port; each broker advertises 127.0.0.1
+      # with the host port mapped in manifests/kind-cluster.yaml.
+      - name: external
+        port: 9094
+        type: nodeport
+        tls: false
+        configuration:
+          bootstrap:
+            nodePort: 31092
+          brokers:
+            - broker: 0
+              nodePort: 31093
+              advertisedHost: 127.0.0.1
+              advertisedPort: 9093
+            - broker: 1
+              nodePort: 31094
+              advertisedHost: 127.0.0.1
+              advertisedPort: 9094
+            - broker: 2
+              nodePort: 31095
+              advertisedHost: 127.0.0.1
+              advertisedPort: 9095
     config:
       # Replication and reliability settings
       default.replication.factor: 3

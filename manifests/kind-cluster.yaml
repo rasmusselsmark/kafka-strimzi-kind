@@ -15,8 +15,20 @@ nodes:
   - containerPort: 443
     hostPort: 443
     protocol: TCP
-  - containerPort: 9092
+  # Kafka external access (nodeport listener in manifests/kafka-cluster.yaml).
+  # NodePort services are reachable on any node, so mapping them on the
+  # control-plane is enough; kube-proxy forwards to the broker pod anywhere.
+  - containerPort: 31092   # kafka bootstrap
     hostPort: 9092
+    protocol: TCP
+  - containerPort: 31093   # broker-0
+    hostPort: 9093
+    protocol: TCP
+  - containerPort: 31094   # broker-1
+    hostPort: 9094
+    protocol: TCP
+  - containerPort: 31095   # broker-2
+    hostPort: 9095
     protocol: TCP
 - role: worker
   kubeadmConfigPatches:

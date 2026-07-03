@@ -85,7 +85,7 @@ fi
 print_status "Demo producer is running"
 
 # Check if demo producer is producing messages
-PRODUCER_LOGS=$(kubectl logs deployment/demo-producer -n "$KAFKA_NAMESPACE" --tail=5 2>/dev/null | grep -c "Produced message" || echo "0")
+PRODUCER_LOGS=$(kubectl logs deployment/demo-producer -n "$KAFKA_NAMESPACE" --tail=5 2>/dev/null | grep -c "produced" || echo "0")
 if [ "$PRODUCER_LOGS" -gt 0 ]; then
     print_status "Demo producer is generating messages"
 else
@@ -97,5 +97,5 @@ echo -e "${GREEN}🎉 Validation complete!${NC}"
 echo ""
 echo -e "${BLUE}📋 Quick commands:${NC}"
 echo "  View producer logs: kubectl logs -f deployment/demo-producer -n $KAFKA_NAMESPACE"
-echo "  Port forward Kafka: kubectl port-forward service/kafka-cluster-kafka-bootstrap 9092:9092 -n $KAFKA_NAMESPACE"
+echo "  Kafka bootstrap (host): 127.0.0.1:9092"
 echo "  Check all pods: kubectl get pods -n $KAFKA_NAMESPACE"
