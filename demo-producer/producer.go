@@ -21,12 +21,13 @@ func main() {
 	delay := flag.Int("delay", 0, "Delay in milliseconds between each message")
 	randomDelay := flag.Int("random-delay", 0, "Use random delay between 0 and specified delay (milliseconds)")
 	startFrom := flag.Int("start-from", 0, "First message number to start from")
+	brokers := flag.String("brokers", "kafka-cluster-kafka-bootstrap:9092", "Comma-separated Kafka bootstrap brokers")
 
 	// Parse command-line flags
 	flag.Parse()
 
 	// Create a Kafka client configuration with Manual partitioner
-	seeds := []string{"kafka-cluster-kafka-bootstrap:9092"}
+	seeds := strings.Split(*brokers, ",")
 
 	// Uncomment for SASL authentication if needed
 	// plainAuth := plain.Auth{
@@ -71,10 +72,16 @@ func main() {
 		}
 	}
 	if result.Err != nil {
-		log.Printf("Failed to create topic %s: %v", result.Topic, result.Err)
+		log.Printf("[INF] Unable to create topic %s: %v", result.Topic, result.Err)
 	} else {
 		log.Printf("Created topic %s", result.Topic)
 	}
+
+	// Throttle progress logging: print at most once per 1000 messages or
+	// every 10 seconds, whichever comes first.
+	produced := 0
+	lastLogCount := 0
+	lastLogTime := time.Now()
 
 	for i := 0; i < *messages; i++ {
 		// Create a context with a timeout per message
@@ -83,8 +90,8 @@ func main() {
 
 		message := fmt.Sprintf("Hello, Kafka! Message %d", *startFrom+i)
 		record := &kgo.Record{
-			Topic:     *topic,
-			Value:     []byte(message),
+			Topic: *topic,
+			Value: []byte(message),
 		}
 
 		client.BeginTransaction()
@@ -95,7 +102,12 @@ func main() {
 		if err != nil {
 			log.Printf("failed to produce message: %v", err)
 		} else {
-			log.Printf("produced message to topic %s: %s", *topic, message)
+			produced++
+			if produced-lastLogCount >= 1000 || time.Since(lastLogTime) >= 10*time.Second {
+				log.Printf("produced %d messages to topic %s (latest: %s)", produced, *topic, message)
+				lastLogCount = produced
+				lastLogTime = time.Now()
+			}
 		}
 
 		// Delay between messages
