@@ -21,6 +21,23 @@ If running using Colima (Docker Desktop alternative), make sure you have enough 
 colima start --memory 16 --cpu 6 --disk 200
 ```
 
+**Raise the inotify limit.** The many pods in this stack exhaust Colima's default
+`fs.inotify.max_user_instances` (128), which breaks `kubectl logs --follow` with
+`failed to create fsnotify watcher: too many open files`
+(a [known kind issue](https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files)).
+Colima has no `sysctl` flag on `colima start`, so bake it into the VM's startup
+provisioning. Run `colima start --edit` and add:
+```yaml
+provision:
+  - mode: system
+    script: sysctl -w fs.inotify.max_user_instances=512
+```
+This runs on every `colima start` (the script is idempotent). To apply it to an
+already-running VM without a restart:
+```
+colima ssh -- sudo sysctl -w fs.inotify.max_user_instances=512
+```
+
 Before running the setup, ensure you have the following installed:
 
 - [Colima](https://github.com/abiosoft/colima) or [Docker Desktop](https://docs.docker.com/get-docker/) - For running Kind
@@ -34,17 +51,45 @@ Run
 ./setup.sh
 ```
 
-Then follow instructions on e.g. port-forward to access RedPanda UI.
+Web UIs are exposed via nip.io ingress (printed at the end of setup):
+
+* Redpanda Console: http://console.127.0.0.1.nip.io
+* Prometheus: http://prometheus.127.0.0.1.nip.io
 
 1. **View demo messages**:
     ```bash
     kubectl -n kafka logs -f deployment/demo-producer
     ```
 
-1. **Consume messages** (from repo root, after `source ./scripts/set-versions.sh`):
+1. **Produce additional messages**:
     ```bash
-    kubectl -n kafka run kafka-consumer --image=quay.io/strimzi/kafka:${STRIMZI_VERSION}-kafka-${KAFKA_VERSION} --rm -it --restart=Never -- bin/kafka-console-consumer.sh --bootstrap-server kafka-cluster-kafka-bootstrap:9092 --topic test-topic --from-beginning
+    cd demo-producer"
+    go run . --brokers 127.0.0.1:9092 --topic other-topic --messages 20000
     ```
+
+1. **Consume messages**:
+    ```bash
+    ./consume-messages.sh other-topic
+    ```
+
+## Connect from the host (no port-forward)
+
+The Kafka cluster exposes a plaintext `nodeport` listener that kind maps to the
+host, so clients on your machine connect directly:
+
+```
+bootstrap server: 127.0.0.1:9092
+```
+
+Kafka's bootstrap protocol then advertises the individual brokers as
+`127.0.0.1:9093`, `127.0.0.1:9094` and `127.0.0.1:9095` (also mapped through
+kind), which is why each broker gets its own host port. Point any Kafka client
+or GUI at `127.0.0.1:9092` — no `kubectl port-forward` required.
+
+> The listener is defined in [`manifests/kafka-cluster.yaml`](./manifests/kafka-cluster.yaml)
+> and the host port mappings in [`manifests/kind-cluster.yaml`](./manifests/kind-cluster.yaml).
+> Changing the port mappings requires recreating the kind cluster
+> (`./cleanup.sh && ./setup.sh`).
 
 ## Rebalance cluster using Cruise Control
 
