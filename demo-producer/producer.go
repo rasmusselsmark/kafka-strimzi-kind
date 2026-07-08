@@ -121,9 +121,6 @@ func main() {
 		if !strings.HasPrefix(err.Error(), "TOPIC_ALREADY_EXISTS") {
 			log.Fatalf("failed to create topic: %v", err.Error())
 		}
-	}
-	if result.Err != nil {
-		log.Printf("[INF] Unable to create topic %s: %v", result.Topic, result.Err)
 	} else {
 		log.Printf("Created topic %s", result.Topic)
 	}
