@@ -15,14 +15,39 @@ import (
 	// "github.com/twmb/franz-go/pkg/sasl/plain" // Uncomment if SASL is needed
 )
 
-// batchLogger implements kgo.HookProduceBatchWritten so we can see the batching
-// that linger.ms produces: it fires once per record batch actually sent to a
-// broker, reporting how many records were coalesced and the wire size.
-type batchLogger struct{}
+// batchStats implements kgo.HookProduceBatchWritten so we can see the batching
+// that linger.ms produces: the hook fires once per record batch actually sent to
+// a broker. Each call logs the batch and accumulates totals for the end-of-run
+// summary. The hook runs on the client's goroutines, so access is mutex-guarded.
+type batchStats struct {
+	verbose           bool // when true, log every batch as it is written
+	mu                sync.Mutex
+	batches           int64
+	records           int64
+	compressedBytes   int64 // bytes on the wire (post-compression)
+	uncompressedBytes int64 // raw record bytes
+	minRecords        int
+	maxRecords        int
+}
 
-func (batchLogger) OnProduceBatchWritten(meta kgo.BrokerMetadata, topic string, partition int32, m kgo.ProduceBatchMetrics) {
-	log.Printf("batch written: broker=%d topic=%s partition=%d records=%d bytes=%d (uncompressed=%d)",
-		meta.NodeID, topic, partition, m.NumRecords, m.CompressedBytes, m.UncompressedBytes)
+func (b *batchStats) OnProduceBatchWritten(meta kgo.BrokerMetadata, topic string, partition int32, m kgo.ProduceBatchMetrics) {
+	b.mu.Lock()
+	if b.batches == 0 || m.NumRecords < b.minRecords {
+		b.minRecords = m.NumRecords
+	}
+	if m.NumRecords > b.maxRecords {
+		b.maxRecords = m.NumRecords
+	}
+	b.batches++
+	b.records += int64(m.NumRecords)
+	b.compressedBytes += int64(m.CompressedBytes)
+	b.uncompressedBytes += int64(m.UncompressedBytes)
+	b.mu.Unlock()
+
+	if b.verbose {
+		log.Printf("batch written: broker=%d topic=%s partition=%d records=%d bytes=%d (uncompressed=%d)",
+			meta.NodeID, topic, partition, m.NumRecords, m.CompressedBytes, m.UncompressedBytes)
+	}
 }
 
 func main() {
@@ -34,12 +59,16 @@ func main() {
 	startFrom := flag.Int("start-from", 0, "First message number to start from")
 	brokers := flag.String("brokers", "kafka-cluster-kafka-bootstrap:9092", "Comma-separated Kafka bootstrap brokers")
 	lingerMs := flag.Int("linger-ms", 250, "linger.ms: max time (ms) to accumulate records into a batch before sending")
+	verbose := flag.Bool("verbose", false, "Log every batch as it is written (in addition to the end-of-run summary)")
 
 	// Parse command-line flags
 	flag.Parse()
 
 	// Create a Kafka client configuration with Manual partitioner
 	seeds := strings.Split(*brokers, ",")
+
+	// Accumulates per-batch metrics for the end-of-run summary.
+	stats := &batchStats{verbose: *verbose}
 
 	// Uncomment for SASL authentication if needed
 	// plainAuth := plain.Auth{
@@ -60,8 +89,8 @@ func main() {
 		// "batch written" logs from batchLogger).
 		kgo.ProducerLinger(time.Duration(*lingerMs) * time.Millisecond),
 
-		// Log every batch as it is written so batching is observable.
-		kgo.WithHooks(batchLogger{}),
+		// Log every batch as it is written and accumulate batch stats.
+		kgo.WithHooks(stats),
 
 		// only require leader ack, so we can still produce if a broker is down
 		// allows us to test taking down brokers
@@ -115,6 +144,8 @@ func main() {
 	// old ProduceSync loop did) would abort still-buffered records mid-batch.
 	ctx := context.Background()
 
+	start := time.Now()
+
 	for i := 0; i < *messages; i++ {
 		message := fmt.Sprintf("Hello, Kafka! Message %d", *startFrom+i)
 		record := &kgo.Record{
@@ -151,8 +182,43 @@ func main() {
 	if err := client.Flush(ctx); err != nil {
 		log.Printf("flush error: %v", err)
 	}
+	elapsed := time.Since(start)
 
 	mu.Lock()
-	log.Printf("Finished producing messages: %d succeeded, %d failed", produced, failed)
+	okCount, failCount := produced, failed
 	mu.Unlock()
+
+	stats.mu.Lock()
+	batches, records := stats.batches, stats.records
+	comp, uncomp := stats.compressedBytes, stats.uncompressedBytes
+	minR, maxR := stats.minRecords, stats.maxRecords
+	stats.mu.Unlock()
+
+	secs := elapsed.Seconds()
+	log.Printf("Finished producing messages: %d succeeded, %d failed", okCount, failCount)
+
+	fmt.Println()
+	fmt.Println("──────────────── run summary ────────────────")
+	fmt.Printf("  linger.ms            : %d\n", *lingerMs)
+	fmt.Printf("  messages             : %d ok, %d failed\n", okCount, failCount)
+	fmt.Printf("  elapsed              : %.2fs\n", secs)
+	if secs > 0 {
+		fmt.Printf("  throughput           : %.0f msg/s\n", float64(okCount)/secs)
+	}
+	fmt.Printf("  batches written      : %d\n", batches)
+	if batches > 0 {
+		fmt.Printf("  records/batch        : avg %.1f (min %d, max %d)\n",
+			float64(records)/float64(batches), minR, maxR)
+		fmt.Printf("  bytes/batch (wire)   : avg %.0f\n", float64(comp)/float64(batches))
+	}
+	fmt.Printf("  wire bytes           : %.2f MB", float64(comp)/1e6)
+	if secs > 0 {
+		fmt.Printf(" (%.2f MB/s)", float64(comp)/1e6/secs)
+	}
+	fmt.Println()
+	fmt.Printf("  uncompressed bytes   : %.2f MB\n", float64(uncomp)/1e6)
+	if comp > 0 {
+		fmt.Printf("  compression ratio    : %.2fx\n", float64(uncomp)/float64(comp))
+	}
+	fmt.Println("─────────────────────────────────────────────")
 }

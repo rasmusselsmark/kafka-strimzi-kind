@@ -135,3 +135,48 @@ Run
 ```
 ./cleanup.sh
 ```
+
+## Batch sizes and `linger.ms`
+
+When running producer, you can specify `--linger-ms` argument, which controls how long the consumer will wait before sending request to Kafka. By default this is 0, i.e. messages will be sent as soon as possible, typically resulting in 1 message per batch. By setting to e.g. `250 ms`, you can get bigger batch sizes and better compression, as shown in example here:
+
+```
+$ cd demo-producer
+
+demo-producer $ go run . --brokers 127.0.0.1:9092 --topic linger-test --messages 2000 --delay 5 --linger-ms 0
+2026/07/08 17:01:57 Created topic linger-test
+2026/07/08 17:02:02 produced 1000 messages to topic linger-test (latest: Hello, Kafka! Message 999)
+2026/07/08 17:02:08 produced 2000 messages to topic linger-test (latest: Hello, Kafka! Message 1999)
+2026/07/08 17:02:08 Finished producing messages: 2000 succeeded, 0 failed
+
+──────────────── run summary ────────────────
+  linger.ms            : 0
+  messages             : 2000 ok, 0 failed
+  elapsed              : 10.90s
+  throughput           : 184 msg/s
+  batches written      : 1954
+  records/batch        : avg 1.0 (min 1, max 12)
+  bytes/batch (wire)   : avg 33
+  wire bytes           : 0.06 MB (0.01 MB/s)
+  uncompressed bytes   : 0.06 MB
+  compression ratio    : 1.01x
+─────────────────────────────────────────────
+
+demo-producer $ go run . --brokers 127.0.0.1:9092 --topic linger-test --messages 2000 --delay 5 --linger-ms 250
+2026/07/08 17:02:24 produced 1000 messages to topic linger-test (latest: Hello, Kafka! Message 999)
+2026/07/08 17:02:29 produced 2000 messages to topic linger-test (latest: Hello, Kafka! Message 1999)
+2026/07/08 17:02:29 Finished producing messages: 2000 succeeded, 0 failed
+
+──────────────── run summary ────────────────
+  linger.ms            : 250
+  messages             : 2000 ok, 0 failed
+  elapsed              : 10.98s
+  throughput           : 182 msg/s
+  batches written      : 65
+  records/batch        : avg 30.8 (min 1, max 47)
+  bytes/batch (wire)   : avg 361
+  wire bytes           : 0.02 MB (0.00 MB/s)
+  uncompressed bytes   : 0.07 MB
+  compression ratio    : 2.82x
+─────────────────────────────────────────────
+```
