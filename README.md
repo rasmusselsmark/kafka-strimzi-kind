@@ -180,3 +180,10 @@ demo-producer $ go run . --brokers 127.0.0.1:9092 --topic linger-test --messages
   compression ratio    : 2.82x
 ─────────────────────────────────────────────
 ```
+
+You can verify that messages were written using
+```
+$ ./consume-messages.sh linger-test
+```
+
+`SIGINT` (Ctrl+C) and `SIGTERM` (Kubernetes graceful shutdown) interrupts are handled in code by flushing the buffer, so no messages should be lost.

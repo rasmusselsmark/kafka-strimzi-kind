@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/twmb/franz-go/pkg/kadm"
@@ -137,20 +140,37 @@ func main() {
 		lastLogTime  = time.Now()
 	)
 
-	// A single long-lived context for all records: cancelling per-record (as the
-	// old ProduceSync loop did) would abort still-buffered records mid-batch.
-	ctx := context.Background()
+	// stopCtx is cancelled on SIGTERM/SIGINT. Kubernetes stops a pod by sending
+	// SIGTERM and waiting terminationGracePeriodSeconds (default 30s) before
+	// SIGKILL. signal.NotifyContext replaces the default "terminate immediately"
+	// behaviour with a context cancel, so we can stop enqueuing and flush the
+	// linger buffer before exiting — otherwise records still buffered for up to
+	// linger.ms would be lost on shutdown.
+	stopCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// Records are produced with a background context, NOT stopCtx: cancelling the
+	// produce context would abort still-buffered records mid-batch (the very data
+	// loss we are trying to avoid). We stop by breaking the loop, then flushing.
+	produceCtx := context.Background()
 
 	start := time.Now()
+	interrupted := false
 
 	for i := 0; i < *messages; i++ {
+		if stopCtx.Err() != nil {
+			interrupted = true
+			log.Printf("shutdown signal received after enqueuing %d messages; draining buffer...", i)
+			break
+		}
+
 		message := fmt.Sprintf("Hello, Kafka! Message %d", *startFrom+i)
 		record := &kgo.Record{
 			Topic: *topic,
 			Value: []byte(message),
 		}
 
-		client.Produce(ctx, record, func(r *kgo.Record, err error) {
+		client.Produce(produceCtx, record, func(r *kgo.Record, err error) {
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -168,16 +188,29 @@ func main() {
 
 		// Delay between messages. Note: any delay spreads records out in time and
 		// works against batching — use 0 (the default) to see linger.ms batch.
+		// The sleep is interruptible so shutdown stays prompt during --delay runs.
+		var d time.Duration
 		if *randomDelay > 0 {
-			time.Sleep(time.Duration(rand.Intn(*randomDelay)) * time.Millisecond)
+			d = time.Duration(rand.Intn(*randomDelay)) * time.Millisecond
 		} else if *delay > 0 {
-			time.Sleep(time.Duration(*delay) * time.Millisecond)
+			d = time.Duration(*delay) * time.Millisecond
+		}
+		if d > 0 {
+			select {
+			case <-time.After(d):
+			case <-stopCtx.Done():
+			}
 		}
 	}
 
-	// Block until all buffered records have been sent (or failed).
-	if err := client.Flush(ctx); err != nil {
-		log.Printf("flush error: %v", err)
+	// Drain the buffer. Use a fresh, bounded context — NOT stopCtx, which is
+	// already cancelled on shutdown (Flush returns immediately on a cancelled
+	// context and would drop the buffer). The timeout stays within the pod's
+	// termination grace period so Flush can't outlive SIGKILL.
+	flushCtx, cancelFlush := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancelFlush()
+	if err := client.Flush(flushCtx); err != nil {
+		log.Printf("flush error (some records may not have been delivered): %v", err)
 	}
 	elapsed := time.Since(start)
 
@@ -197,6 +230,9 @@ func main() {
 	fmt.Println()
 	fmt.Println("──────────────── run summary ────────────────")
 	fmt.Printf("  linger.ms            : %d\n", *lingerMs)
+	if interrupted {
+		fmt.Printf("  shutdown             : interrupted by signal (buffer flushed)\n")
+	}
 	fmt.Printf("  messages             : %d ok, %d failed\n", okCount, failCount)
 	fmt.Printf("  elapsed              : %.2fs\n", secs)
 	if secs > 0 {
