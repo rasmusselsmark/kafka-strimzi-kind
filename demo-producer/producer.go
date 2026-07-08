@@ -7,12 +7,23 @@ import (
 	"log"
 	"math/rand"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 	// "github.com/twmb/franz-go/pkg/sasl/plain" // Uncomment if SASL is needed
 )
+
+// batchLogger implements kgo.HookProduceBatchWritten so we can see the batching
+// that linger.ms produces: it fires once per record batch actually sent to a
+// broker, reporting how many records were coalesced and the wire size.
+type batchLogger struct{}
+
+func (batchLogger) OnProduceBatchWritten(meta kgo.BrokerMetadata, topic string, partition int32, m kgo.ProduceBatchMetrics) {
+	log.Printf("batch written: broker=%d topic=%s partition=%d records=%d bytes=%d (uncompressed=%d)",
+		meta.NodeID, topic, partition, m.NumRecords, m.CompressedBytes, m.UncompressedBytes)
+}
 
 func main() {
 	// Define command-line flags
@@ -22,6 +33,7 @@ func main() {
 	randomDelay := flag.Int("random-delay", 0, "Use random delay between 0 and specified delay (milliseconds)")
 	startFrom := flag.Int("start-from", 0, "First message number to start from")
 	brokers := flag.String("brokers", "kafka-cluster-kafka-bootstrap:9092", "Comma-separated Kafka bootstrap brokers")
+	lingerMs := flag.Int("linger-ms", 250, "linger.ms: max time (ms) to accumulate records into a batch before sending")
 
 	// Parse command-line flags
 	flag.Parse()
@@ -40,6 +52,16 @@ func main() {
 		// kgo.SASL(plainAuth.AsMechanism()), // Uncomment if SASL is enabled
 
 		kgo.AllowAutoTopicCreation(),
+
+		// linger.ms: wait up to --linger-ms to accumulate records into a single
+		// batch per partition before sending, trading latency for throughput.
+		// The async produce loop below lets records pile up during this window,
+		// so raising/lowering this value visibly changes batch sizes (see the
+		// "batch written" logs from batchLogger).
+		kgo.ProducerLinger(time.Duration(*lingerMs) * time.Millisecond),
+
+		// Log every batch as it is written so batching is observable.
+		kgo.WithHooks(batchLogger{}),
 
 		// only require leader ack, so we can still produce if a broker is down
 		// allows us to test taking down brokers
@@ -77,40 +99,47 @@ func main() {
 		log.Printf("Created topic %s", result.Topic)
 	}
 
-	// Throttle progress logging: print at most once per 1000 messages or
-	// every 10 seconds, whichever comes first.
-	produced := 0
-	lastLogCount := 0
-	lastLogTime := time.Now()
+	// Produce asynchronously so records can accumulate into batches during the
+	// linger window. Completion runs in the client's callback goroutines, so the
+	// progress counters are guarded by a mutex. Throttle progress logging: print
+	// at most once per 1000 messages or every 10 seconds, whichever comes first.
+	var (
+		mu           sync.Mutex
+		produced     int
+		failed       int
+		lastLogCount int
+		lastLogTime  = time.Now()
+	)
+
+	// A single long-lived context for all records: cancelling per-record (as the
+	// old ProduceSync loop did) would abort still-buffered records mid-batch.
+	ctx := context.Background()
 
 	for i := 0; i < *messages; i++ {
-		// Create a context with a timeout per message
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-		defer cancel()
-
 		message := fmt.Sprintf("Hello, Kafka! Message %d", *startFrom+i)
 		record := &kgo.Record{
 			Topic: *topic,
 			Value: []byte(message),
 		}
 
-		client.BeginTransaction()
-		// Produce the message
-		err := client.ProduceSync(ctx, record).FirstErr()
-		cancel() // Cancel the context to release resources
-
-		if err != nil {
-			log.Printf("failed to produce message: %v", err)
-		} else {
+		client.Produce(ctx, record, func(r *kgo.Record, err error) {
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				failed++
+				log.Printf("failed to produce message: %v", err)
+				return
+			}
 			produced++
 			if produced-lastLogCount >= 1000 || time.Since(lastLogTime) >= 10*time.Second {
-				log.Printf("produced %d messages to topic %s (latest: %s)", produced, *topic, message)
+				log.Printf("produced %d messages to topic %s (latest: %s)", produced, *topic, string(r.Value))
 				lastLogCount = produced
 				lastLogTime = time.Now()
 			}
-		}
+		})
 
-		// Delay between messages
+		// Delay between messages. Note: any delay spreads records out in time and
+		// works against batching — use 0 (the default) to see linger.ms batch.
 		if *randomDelay > 0 {
 			time.Sleep(time.Duration(rand.Intn(*randomDelay)) * time.Millisecond)
 		} else if *delay > 0 {
@@ -118,5 +147,12 @@ func main() {
 		}
 	}
 
-	log.Println("Finished producing messages")
+	// Block until all buffered records have been sent (or failed).
+	if err := client.Flush(ctx); err != nil {
+		log.Printf("flush error: %v", err)
+	}
+
+	mu.Lock()
+	log.Printf("Finished producing messages: %d succeeded, %d failed", produced, failed)
+	mu.Unlock()
 }
