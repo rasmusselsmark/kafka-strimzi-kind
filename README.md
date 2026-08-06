@@ -14,9 +14,15 @@ A complete setup for running Apache Kafka locally in Kubernetes-in-Docker (Kind)
 
 Manifests for each of the included services can be found in the [manifests folder](./manifests).
 
-The Strimzi cluster operator runs in its own `strimzi` namespace and is deployed cluster-wide
-(`STRIMZI_NAMESPACE: "*"`), so it manages Kafka clusters in any namespace. The Kafka cluster and
-the other services in this setup are deployed in the `kafka` namespace.
+Namespaces used by the setup:
+
+* `strimzi` - the Strimzi cluster operator, deployed cluster-wide (`STRIMZI_NAMESPACE: "*"`),
+  so it manages Kafka clusters in any namespace
+* `monitoring` - the Prometheus Operator and Prometheus, which discover ServiceMonitors in
+  all namespaces (such as the KMinion one in the `kafka` namespace)
+* `kafka` - the Kafka cluster, Redpanda Console and KMinion
+* `demo-producer` - the demo producer, connecting to Kafka across namespaces via
+  `kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092`
 
 ## Prerequisites
 
@@ -62,7 +68,7 @@ Web UIs are exposed via nip.io ingress (printed at the end of setup):
 
 1. **View demo messages**:
     ```bash
-    kubectl -n kafka logs -f deployment/demo-producer
+    kubectl -n demo-producer logs -f deployment/demo-producer
     ```
 
 1. **Produce additional messages**:

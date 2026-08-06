@@ -12,6 +12,7 @@ NC='\033[0m' # No Color
 CLUSTER_NAME="kafka-cluster"
 KAFKA_NAMESPACE="kafka"
 STRIMZI_NAMESPACE="strimzi"
+DEMO_PRODUCER_NAMESPACE="demo-producer"
 
 echo -e "${BLUE}🔍 Validating Kafka setup...${NC}"
 
@@ -36,13 +37,13 @@ fi
 print_status "Kind cluster exists"
 
 # Check if namespaces exist
-for namespace in "$KAFKA_NAMESPACE" "$STRIMZI_NAMESPACE"; do
+for namespace in "$KAFKA_NAMESPACE" "$STRIMZI_NAMESPACE" "$DEMO_PRODUCER_NAMESPACE"; do
     if ! kubectl get namespace "$namespace" >/dev/null 2>&1; then
         print_error "Namespace '$namespace' not found."
         exit 1
     fi
 done
-print_status "Kafka and Strimzi namespaces exist"
+print_status "Namespaces exist"
 
 # Check Strimzi operator
 if ! kubectl get deployment strimzi-cluster-operator -n "$STRIMZI_NAMESPACE" >/dev/null 2>&1; then
@@ -81,14 +82,14 @@ fi
 print_status "Test topic exists"
 
 # Check demo producer
-if ! kubectl get deployment demo-producer -n "$KAFKA_NAMESPACE" >/dev/null 2>&1; then
+if ! kubectl get deployment demo-producer -n "$DEMO_PRODUCER_NAMESPACE" >/dev/null 2>&1; then
     print_error "Demo producer not found."
     exit 1
 fi
 print_status "Demo producer is running"
 
 # Check if demo producer is producing messages
-PRODUCER_LOGS=$(kubectl logs deployment/demo-producer -n "$KAFKA_NAMESPACE" --tail=5 2>/dev/null | grep -c "produced" || echo "0")
+PRODUCER_LOGS=$(kubectl logs deployment/demo-producer -n "$DEMO_PRODUCER_NAMESPACE" --tail=5 2>/dev/null | grep -c "produced" || echo "0")
 if [ "$PRODUCER_LOGS" -gt 0 ]; then
     print_status "Demo producer is generating messages"
 else
@@ -99,6 +100,6 @@ echo ""
 echo -e "${GREEN}🎉 Validation complete!${NC}"
 echo ""
 echo -e "${BLUE}📋 Quick commands:${NC}"
-echo "  View producer logs: kubectl logs -f deployment/demo-producer -n $KAFKA_NAMESPACE"
+echo "  View producer logs: kubectl logs -f deployment/demo-producer -n $DEMO_PRODUCER_NAMESPACE"
 echo "  Kafka bootstrap (host): 127.0.0.1:9092"
 echo "  Check all pods: kubectl get pods -n $KAFKA_NAMESPACE"

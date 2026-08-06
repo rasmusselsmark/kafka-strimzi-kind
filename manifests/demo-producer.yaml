@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: demo-producer
-  namespace: kafka
+  namespace: demo-producer
 spec:
   replicas: 1
   selector:
@@ -21,11 +21,15 @@ spec:
         - /bin/sh
         - -c
         - |
+          # the Kafka cluster lives in another namespace, so the bootstrap service
+          # must be addressed by its fully qualified name
+          BROKERS=kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092
+
           # first create 50K messages, so we have some data
-          /app/kafka-producer --messages 50000
+          /app/kafka-producer --brokers $BROKERS --messages 50000
 
           # then just keep producing messages for a couple of hours
-          /app/kafka-producer --messages 100000 --start-from 50000 --random-delay 200
+          /app/kafka-producer --brokers $BROKERS --messages 100000 --start-from 50000 --random-delay 200
         resources:
           requests:
             memory: 256Mi

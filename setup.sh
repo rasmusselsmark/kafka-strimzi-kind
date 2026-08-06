@@ -17,6 +17,7 @@ CLUSTER_NAME="kafka-cluster"
 KAFKA_NAMESPACE="kafka"
 STRIMZI_NAMESPACE="strimzi"
 MONITORING_NAMESPACE="monitoring"
+DEMO_PRODUCER_NAMESPACE="demo-producer"
 
 # Function to check if command exists
 command_exists() {
@@ -108,7 +109,7 @@ setup_kind_cluster() {
 # Create namespaces
 create_namespaces() {
     print "📦 Creating namespaces..."
-    for namespace in "$STRIMZI_NAMESPACE" "$KAFKA_NAMESPACE" "$MONITORING_NAMESPACE"; do
+    for namespace in "$STRIMZI_NAMESPACE" "$KAFKA_NAMESPACE" "$MONITORING_NAMESPACE" "$DEMO_PRODUCER_NAMESPACE"; do
         if ! kubectl get namespace "$namespace" >/dev/null 2>&1; then
             kubectl create namespace "$namespace"
         fi
@@ -203,7 +204,7 @@ deploy_redpanda_console() {
 start_demo_data_ingestion() {
     print
     print "📊 Starting demo data ingestion..."
-    kubectl apply -f manifests/demo-producer.yaml -n "$KAFKA_NAMESPACE"
+    kubectl apply -f manifests/demo-producer.yaml -n "$DEMO_PRODUCER_NAMESPACE"
 }
 
 # Install KMinion for monitoring
@@ -306,7 +307,7 @@ print_completion_message() {
     echo "    ./consume-messages.sh"
     echo ""
     print "📋 Logs:"
-    echo "  kubectl -n $KAFKA_NAMESPACE logs -f deployment/demo-producer"
+    echo "  kubectl -n $DEMO_PRODUCER_NAMESPACE logs -f deployment/demo-producer"
     echo "  kubectl -n $KAFKA_NAMESPACE logs -f deployment/kminion"
     echo "  kubectl -n $STRIMZI_NAMESPACE logs -f deployment/strimzi-cluster-operator"
     echo ""

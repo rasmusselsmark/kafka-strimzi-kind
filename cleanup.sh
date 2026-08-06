@@ -12,6 +12,7 @@ CLUSTER_NAME="kafka-cluster"
 KAFKA_NAMESPACE="kafka"
 STRIMZI_NAMESPACE="strimzi"
 MONITORING_NAMESPACE="monitoring"
+DEMO_PRODUCER_NAMESPACE="demo-producer"
 
 # Function to print messages
 print() {
@@ -56,9 +57,10 @@ if [ "$1" = "--resources-only" ]; then
     print "Deleting Kafka resources..."
     kubectl delete -f manifests/ --ignore-not-found=true >/dev/null 2>&1 || true
 
-    # Delete namespaces (Strimzi operator and Prometheus have their own)
+    # Delete namespaces (Strimzi operator, Prometheus and the demo producer have their own)
     print "Deleting namespaces..."
-    kubectl delete namespace "$KAFKA_NAMESPACE" "$STRIMZI_NAMESPACE" "$MONITORING_NAMESPACE" --ignore-not-found=true >/dev/null 2>&1
+    kubectl delete namespace "$KAFKA_NAMESPACE" "$STRIMZI_NAMESPACE" "$MONITORING_NAMESPACE" \
+        "$DEMO_PRODUCER_NAMESPACE" --ignore-not-found=true >/dev/null 2>&1
 
     # The cluster-wide bindings added by setup.sh outlive the namespaces
     print "Deleting Strimzi cluster-wide role bindings..."
