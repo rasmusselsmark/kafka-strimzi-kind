@@ -11,6 +11,7 @@ NC='\033[0m' # No Color
 CLUSTER_NAME="kafka-cluster"
 KAFKA_NAMESPACE="kafka"
 STRIMZI_NAMESPACE="strimzi"
+MONITORING_NAMESPACE="monitoring"
 
 # Function to print messages
 print() {
@@ -43,19 +44,21 @@ if [ "$1" = "--resources-only" ]; then
 
     # Delete Prometheus Operator resources
     print "Deleting Prometheus Operator resources..."
-    helm uninstall prometheus-operator -n "$KAFKA_NAMESPACE" >/dev/null 2>&1 || print_warning "Prometheus Operator not found"
+    helm uninstall prometheus-operator -n "$MONITORING_NAMESPACE" >/dev/null 2>&1 || print_warning "Prometheus Operator not found"
 
     # Delete KMinion
     print "Deleting KMinion..."
     helm uninstall kminion -n "$KAFKA_NAMESPACE" >/dev/null 2>&1 || print_warning "KMinion not found"
 
-    # Delete Kafka resources
+    # Delete Kafka resources. No -n flag, since the manifests span several namespaces
+    # and carry their own metadata.namespace. Best effort: the folder also holds files
+    # that are not Kubernetes resources (kind cluster config, Helm values)
     print "Deleting Kafka resources..."
-    kubectl delete -f manifests/ --ignore-not-found=true -n "$KAFKA_NAMESPACE" >/dev/null 2>&1
+    kubectl delete -f manifests/ --ignore-not-found=true >/dev/null 2>&1 || true
 
-    # Delete namespaces (the Strimzi namespace holds the cluster operator)
+    # Delete namespaces (Strimzi operator and Prometheus have their own)
     print "Deleting namespaces..."
-    kubectl delete namespace "$KAFKA_NAMESPACE" "$STRIMZI_NAMESPACE" --ignore-not-found=true >/dev/null 2>&1
+    kubectl delete namespace "$KAFKA_NAMESPACE" "$STRIMZI_NAMESPACE" "$MONITORING_NAMESPACE" --ignore-not-found=true >/dev/null 2>&1
 
     # The cluster-wide bindings added by setup.sh outlive the namespaces
     print "Deleting Strimzi cluster-wide role bindings..."

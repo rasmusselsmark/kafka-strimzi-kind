@@ -19,6 +19,19 @@ spec:
             name: redpanda-console
             port:
               number: 8080
+---
+# Prometheus runs in the monitoring namespace, and an Ingress can only route to
+# services in its own namespace, so it needs a separate Ingress resource
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: monitoring-services-ingress
+  namespace: monitoring
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+spec:
+  ingressClassName: nginx
+  rules:
   # Prometheus - access via http://prometheus.127.0.0.1.nip.io
   - host: prometheus.127.0.0.1.nip.io
     http:

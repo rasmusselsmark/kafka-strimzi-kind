@@ -16,6 +16,7 @@ NC='\033[0m' # No Color
 CLUSTER_NAME="kafka-cluster"
 KAFKA_NAMESPACE="kafka"
 STRIMZI_NAMESPACE="strimzi"
+MONITORING_NAMESPACE="monitoring"
 
 # Function to check if command exists
 command_exists() {
@@ -107,10 +108,9 @@ setup_kind_cluster() {
 # Create namespaces
 create_namespaces() {
     print "📦 Creating namespaces..."
-    for namespace in "$STRIMZI_NAMESPACE" "$KAFKA_NAMESPACE"; do
+    for namespace in "$STRIMZI_NAMESPACE" "$KAFKA_NAMESPACE" "$MONITORING_NAMESPACE"; do
         if ! kubectl get namespace "$namespace" >/dev/null 2>&1; then
             kubectl create namespace "$namespace"
-            print_status "Namespace '$namespace' created"
         fi
     done
 }
@@ -238,8 +238,9 @@ install_prometheus_operator() {
 
     # Install Prometheus Operator
     # The `prometheus.prometheusSpec` values are required for discovering KMinion metrics using custom ServiceMonitor.
+    # ServiceMonitors are discovered in all namespaces by default, so the KMinion one can stay in the Kafka namespace.
     helm upgrade --install prometheus-operator prometheus-community/kube-prometheus-stack \
-      --namespace "$KAFKA_NAMESPACE" \
+      --namespace "$MONITORING_NAMESPACE" \
       --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
       --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
       --set prometheus.prometheusSpec.ruleSelectorNilUsesHelmValues=false \
@@ -248,7 +249,7 @@ install_prometheus_operator() {
       --timeout=300s >/dev/null 2>&1
 
     print "⏳ Waiting for Prometheus Operator to be ready..."
-    kubectl wait --for=condition=Available deployment/prometheus-operator-kube-p-operator -n "$KAFKA_NAMESPACE" --timeout=300s
+    kubectl wait --for=condition=Available deployment/prometheus-operator-kube-p-operator -n "$MONITORING_NAMESPACE" --timeout=300s
     print_status "Prometheus Operator is ready"
 }
 
@@ -259,7 +260,7 @@ deploy_servicemonitor() {
     kubectl apply -f manifests/kminion-servicemonitor.yaml -n "$KAFKA_NAMESPACE"
 
     print "⏳ Waiting for Prometheus to be ready..."
-    kubectl wait --for=condition=Available prometheus/prometheus-operator-kube-p-prometheus -n "$KAFKA_NAMESPACE" --timeout=300s
+    kubectl wait --for=condition=Available prometheus/prometheus-operator-kube-p-prometheus -n "$MONITORING_NAMESPACE" --timeout=300s
     print_status "Prometheus is ready"
 }
 
