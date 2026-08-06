@@ -11,6 +11,7 @@ NC='\033[0m' # No Color
 
 CLUSTER_NAME="kafka-cluster"
 KAFKA_NAMESPACE="kafka"
+STRIMZI_NAMESPACE="strimzi"
 
 echo -e "${BLUE}🔍 Validating Kafka setup...${NC}"
 
@@ -34,15 +35,17 @@ if ! kind get clusters | grep -q "$CLUSTER_NAME"; then
 fi
 print_status "Kind cluster exists"
 
-# Check if namespace exists
-if ! kubectl get namespace "$KAFKA_NAMESPACE" >/dev/null 2>&1; then
-    print_error "Namespace '$KAFKA_NAMESPACE' not found."
-    exit 1
-fi
-print_status "Kafka namespace exists"
+# Check if namespaces exist
+for namespace in "$KAFKA_NAMESPACE" "$STRIMZI_NAMESPACE"; do
+    if ! kubectl get namespace "$namespace" >/dev/null 2>&1; then
+        print_error "Namespace '$namespace' not found."
+        exit 1
+    fi
+done
+print_status "Kafka and Strimzi namespaces exist"
 
 # Check Strimzi operator
-if ! kubectl get deployment strimzi-cluster-operator -n "$KAFKA_NAMESPACE" >/dev/null 2>&1; then
+if ! kubectl get deployment strimzi-cluster-operator -n "$STRIMZI_NAMESPACE" >/dev/null 2>&1; then
     print_error "Strimzi operator not found."
     exit 1
 fi

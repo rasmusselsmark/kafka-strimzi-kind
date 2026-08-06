@@ -15,6 +15,7 @@ NC='\033[0m' # No Color
 # Configuration
 CLUSTER_NAME="kafka-cluster"
 KAFKA_NAMESPACE="kafka"
+STRIMZI_NAMESPACE="strimzi"
 
 # Function to check if command exists
 command_exists() {
@@ -103,29 +104,50 @@ setup_kind_cluster() {
     print_status "Cluster is ready"
 }
 
-# Create namespace
-create_namespace() {
-    if ! kubectl get namespace "$KAFKA_NAMESPACE" >/dev/null 2>&1; then
-        print "📦 Creating namespace..."
-        kubectl create namespace "$KAFKA_NAMESPACE"
-        print_status "Namespace '$KAFKA_NAMESPACE' created"
-    fi
+# Create namespaces
+create_namespaces() {
+    print "📦 Creating namespaces..."
+    for namespace in "$STRIMZI_NAMESPACE" "$KAFKA_NAMESPACE"; do
+        if ! kubectl get namespace "$namespace" >/dev/null 2>&1; then
+            kubectl create namespace "$namespace"
+            print_status "Namespace '$namespace' created"
+        fi
+    done
 }
 
 # Install Strimzi operator
 install_strimzi_operator() {
     # Check if Strimzi operator is already installed
-    if ! kubectl get deployment strimzi-cluster-operator -n "$KAFKA_NAMESPACE" >/dev/null 2>&1; then
+    if ! kubectl get deployment strimzi-cluster-operator -n "$STRIMZI_NAMESPACE" >/dev/null 2>&1; then
         print
-        print "🔧 Installing Strimzi operator..."
+        print "🔧 Installing Strimzi operator in namespace '$STRIMZI_NAMESPACE'..."
 
         # we download the operator bundle from GitHub releases, since we use a pinned version
         strimzi_bundle="https://github.com/strimzi/strimzi-kafka-operator/releases/download/${STRIMZI_VERSION}/strimzi-cluster-operator-${STRIMZI_VERSION}.yaml"
-        curl -fsSL "$strimzi_bundle" | sed "s#myproject#${KAFKA_NAMESPACE}#g" | kubectl create -f - -n "$KAFKA_NAMESPACE"
+        curl -fsSL "$strimzi_bundle" | sed "s#myproject#${STRIMZI_NAMESPACE}#g" | kubectl create -f - -n "$STRIMZI_NAMESPACE"
 
-        # Wait for Strimzi operator to be ready
+        # By default the operator only watches its own namespace. "*" makes it cluster-wide,
+        # so Kafka clusters can be deployed in any namespace without touching the operator.
+        kubectl set env deployment/strimzi-cluster-operator -n "$STRIMZI_NAMESPACE" \
+            STRIMZI_NAMESPACE="*" >/dev/null
+
+        # A cluster-wide operator needs the namespaced roles bound cluster-wide as well.
+        # The bundle only binds them in the operator's own namespace (those RoleBindings
+        # stay in place, but are redundant once these exist).
+        kubectl create clusterrolebinding strimzi-cluster-operator-namespaced \
+            --clusterrole=strimzi-cluster-operator-namespaced \
+            --serviceaccount="${STRIMZI_NAMESPACE}:strimzi-cluster-operator"
+        kubectl create clusterrolebinding strimzi-cluster-operator-watched \
+            --clusterrole=strimzi-cluster-operator-watched \
+            --serviceaccount="${STRIMZI_NAMESPACE}:strimzi-cluster-operator"
+        kubectl create clusterrolebinding strimzi-cluster-operator-entity-operator-delegation \
+            --clusterrole=strimzi-entity-operator \
+            --serviceaccount="${STRIMZI_NAMESPACE}:strimzi-cluster-operator"
+
+        # Wait for Strimzi operator to be ready (rollout status, since setting the
+        # watched namespace above triggers a new rollout)
         print "⏳ Waiting for Strimzi operator to be ready..."
-        kubectl wait --for=condition=Ready pod -l name=strimzi-cluster-operator -n "$KAFKA_NAMESPACE" --timeout=300s
+        kubectl rollout status deployment/strimzi-cluster-operator -n "$STRIMZI_NAMESPACE" --timeout=300s
         print_status "Strimzi operator is ready"
     fi
 }
@@ -285,6 +307,7 @@ print_completion_message() {
     print "📋 Logs:"
     echo "  kubectl -n $KAFKA_NAMESPACE logs -f deployment/demo-producer"
     echo "  kubectl -n $KAFKA_NAMESPACE logs -f deployment/kminion"
+    echo "  kubectl -n $STRIMZI_NAMESPACE logs -f deployment/strimzi-cluster-operator"
     echo ""
     print "🧹 To clean up:"
     echo "  ./cleanup.sh"
@@ -296,7 +319,7 @@ main() {
 
     check_prerequisites
     setup_kind_cluster
-    create_namespace
+    create_namespaces
     install_strimzi_operator
     deploy_kafka_cluster
     create_test_topic

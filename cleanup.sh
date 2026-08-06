@@ -10,6 +10,7 @@ NC='\033[0m' # No Color
 
 CLUSTER_NAME="kafka-cluster"
 KAFKA_NAMESPACE="kafka"
+STRIMZI_NAMESPACE="strimzi"
 
 # Function to print messages
 print() {
@@ -52,9 +53,17 @@ if [ "$1" = "--resources-only" ]; then
     print "Deleting Kafka resources..."
     kubectl delete -f manifests/ --ignore-not-found=true -n "$KAFKA_NAMESPACE" >/dev/null 2>&1
 
-    # Delete namespace
-    print "Deleting namespace..."
-    kubectl delete namespace "$KAFKA_NAMESPACE" --ignore-not-found=true >/dev/null 2>&1
+    # Delete namespaces (the Strimzi namespace holds the cluster operator)
+    print "Deleting namespaces..."
+    kubectl delete namespace "$KAFKA_NAMESPACE" "$STRIMZI_NAMESPACE" --ignore-not-found=true >/dev/null 2>&1
+
+    # The cluster-wide bindings added by setup.sh outlive the namespaces
+    print "Deleting Strimzi cluster-wide role bindings..."
+    kubectl delete clusterrolebinding \
+        strimzi-cluster-operator-namespaced \
+        strimzi-cluster-operator-watched \
+        strimzi-cluster-operator-entity-operator-delegation \
+        --ignore-not-found=true >/dev/null 2>&1
 
     print_status "Resources cleaned up"
 else

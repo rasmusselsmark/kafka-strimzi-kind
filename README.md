@@ -14,6 +14,10 @@ A complete setup for running Apache Kafka locally in Kubernetes-in-Docker (Kind)
 
 Manifests for each of the included services can be found in the [manifests folder](./manifests).
 
+The Strimzi cluster operator runs in its own `strimzi` namespace and is deployed cluster-wide
+(`STRIMZI_NAMESPACE: "*"`), so it manages Kafka clusters in any namespace. The Kafka cluster and
+the other services in this setup are deployed in the `kafka` namespace.
+
 ## Prerequisites
 
 If running using Colima (Docker Desktop alternative), make sure you have enough resource, e.g.
